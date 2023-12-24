@@ -1,7 +1,15 @@
 # TOOLS VERSIONS
-GO_VERSION=1.21.0
-GOLANGCI_LINT_VERSION=v1.54.0
-
+GO_VERSION=1.21.5
+GOLANGCI_LINT_VERSION=v1.55.0
+devimage=grime-dev
+devrunopts=-it
+gopkg=$(devimage)-gopkg
+gocache=$(devimage)-gocache
+devrun=docker run $(devrunopts) --rm \
+	-v `pwd`:/app \
+	-v $(gopkg):/go/pkg \
+	-v $(gocache):/root/.cache/go-build \
+	$(devimage)
 image=perebaj
 version=$(shell git rev-parse --short HEAD)
 
@@ -38,6 +46,24 @@ image:
 .PHONY: image/publish
 image/publish: image
 	docker push $(image)
+
+.PHONY: dev
+dev: dev/image
+	$(devrun)
+
+## Create the dev container image
+.PHONY: dev/image
+dev/image:
+	docker build \
+		--build-arg GO_VERSION=$(GO_VERSION) \
+		--build-arg GOLANGCI_LINT_VERSION=$(GOLANGCI_LINT_VERSION) \
+		-t $(devimage) \
+		-f Dockerfile.dev \
+		.
+
+##run a make target inside the dev container
+dev/%: dev/image
+	$(devrun) make ${*}
 
 ## Display help for all targets
 .PHONY: help

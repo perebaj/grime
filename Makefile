@@ -2,10 +2,9 @@
 GO_VERSION=1.21.5
 GOLANGCI_LINT_VERSION=v1.55.0
 devimage=grime-dev
-devrunopts=-it
 gopkg=$(devimage)-gopkg
 gocache=$(devimage)-gocache
-devrun=docker run $(devrunopts) --rm \
+devrun=docker run --rm \
 	-v `pwd`:/app \
 	-v $(gopkg):/go/pkg \
 	-v $(gocache):/root/.cache/go-build \

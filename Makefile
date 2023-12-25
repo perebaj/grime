@@ -18,7 +18,7 @@ test:
 	if [ -n "$(testcase)" ]; then \
 		go test ./... -timeout 10s -race -run="^$(testcase)$$" -v; \
 	else \
-		go test ./... -timeout 10s -race; \
+		go test ./... -timeout 10s -race -v; \
 	fi
 
 
@@ -35,7 +35,7 @@ run: service
 ## lint the whole project
 .PHONY: lint
 lint:
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./...
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./... -v
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 

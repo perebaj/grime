@@ -1,36 +1,45 @@
-// Package event provide the interface to handle events.
+// Package event is the entry point for the event package.
 package event
 
 import (
 	"context"
-	"fmt"
 
 	"gocloud.dev/pubsub"
 )
 
-type Event struct {
-	Topic string
+// Publish publish an event to a topic
+type Publish struct {
+	topic *pubsub.Topic
 }
 
-func NewEvent(topic string) Event {
-	return Event{
-		Topic: topic,
+// Subscription subscribe to a topic and receive messages
+type Subscription struct {
+	subs       *pubsub.Subscription
+	MaxHandler int
+}
+
+// Handler is the function that will be called for each message received.
+type Handler func(msg *pubsub.Message) error
+
+// NewSubscription create a new subscription
+func NewSubscription(subs *pubsub.Subscription, maxHandler int) Subscription {
+	return Subscription{
+		subs:       subs,
+		MaxHandler: maxHandler,
 	}
 }
 
-func (e Event) Send() error {
-	ctx := context.Background()
-	topic, err := pubsub.OpenTopic(ctx, e.Topic)
-	if err != nil {
-		return err
+// NewPublish create a new publisher
+func NewPublish(topic *pubsub.Topic) Publish {
+	return Publish{
+		topic: topic,
 	}
-	defer func() {
-		_ = topic.Shutdown(ctx)
-	}()
+}
 
-	err = topic.Send(ctx, &pubsub.Message{
-		Body: []byte("Hello world!"),
-	})
+// Send send a message to a topic
+func (p Publish) Send(ctx context.Context, msg *pubsub.Message) error {
+
+	err := p.topic.Send(ctx, msg)
 
 	if err != nil {
 		return err
@@ -39,23 +48,28 @@ func (e Event) Send() error {
 	return nil
 }
 
-func (e Event) Receive() error {
-	ctx := context.Background()
-	subs, err := pubsub.OpenSubscription(ctx, e.Topic)
-	if err != nil {
-		return err
+// Receive receive messages from a subscription
+func (s Subscription) Receive(ctx context.Context, handler Handler) error {
+	if s.MaxHandler == 0 || s.MaxHandler < 0 {
+		s.MaxHandler = 10
 	}
 
-	defer func() {
-		_ = subs.Shutdown(ctx)
-	}()
+	sem := make(chan struct{}, s.MaxHandler)
+	for {
+		msg, err := s.subs.Receive(ctx)
+		if err != nil {
+			return err
+		}
 
-	msg, err := subs.Receive(ctx)
-	if err != nil {
-		return err
+		sem <- struct{}{} // acquire a semaphore slot
+
+		go func() {
+			defer func() { <-sem }() // release the semaphore
+			defer msg.Ack()
+
+			if err := handler(msg); err != nil {
+				return
+			}
+		}()
 	}
-	fmt.Println(string(msg.Body))
-	msg.Ack()
-
-	return nil
 }

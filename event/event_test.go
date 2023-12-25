@@ -3,14 +3,16 @@ package event
 import (
 	"context"
 	"testing"
+	"time"
 
 	"gocloud.dev/pubsub"
 	_ "gocloud.dev/pubsub/mempubsub"
 )
 
-func TestEvent(t *testing.T) {
+func TestSubscription_Receive(t *testing.T) {
 	ctx := context.Background()
-	topic, err := pubsub.OpenTopic(ctx, "mem://topicA")
+	topicName := newTopic(t)
+	topic, err := pubsub.OpenTopic(ctx, topicName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -19,25 +21,23 @@ func TestEvent(t *testing.T) {
 		_ = topic.Shutdown(ctx)
 	})
 
-	// Open a *pubsub.Subscription that receives from the topic.
-	subs, err := pubsub.OpenSubscription(ctx, "mem://topicA")
+	msgCh := make(chan *pubsub.Message)
+	run := func(msg *pubsub.Message) error {
+		msgCh <- msg
+		return nil
+	}
+
+	subs, err := pubsub.OpenSubscription(ctx, topicName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	done := make(chan struct{})
-	msgCh := make(chan *pubsub.Message)
-	go func() {
-		for {
-			msg, err := subs.Receive(ctx)
-			if err != nil {
-				t.Error(err)
-				break
-			}
+	s := NewSubscription(subs, 1)
 
-			msg.Ack()
-			msgCh <- msg
-			close(done)
+	go func() {
+		err := s.Receive(ctx, run)
+		if err != nil {
+			t.Error(err)
 		}
 	}()
 
@@ -52,5 +52,14 @@ func TestEvent(t *testing.T) {
 		t.Errorf("got %s, want %s", string(msg.Body), "Hello world!")
 	}
 
-	<-done
+	/*
+		Here we have and infinite loop case, so what I'm doing is to wait for
+		a determined time and then exit the test, without throwing an error, just to
+		avoid that the event loop will block the test execution.
+	*/
+	<-time.After(100 * time.Millisecond)
+}
+
+func newTopic(t *testing.T) string {
+	return "mem://" + t.Name()
 }

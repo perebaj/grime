@@ -12,10 +12,15 @@ devrun=docker run --rm \
 image=perebaj
 version=$(shell git rev-parse --short HEAD)
 
-## run isolated tests
+## Run all tests. Usage `make test` or `make test testcase="TestFunctionName"`
 .PHONY: test
 test:
-	go test ./... -timeout 10s -race
+	if [ -n "$(testcase)" ]; then \
+		go test ./... -timeout 10s -race -run="^$(testcase)$$" -v; \
+	else \
+		go test ./... -timeout 10s -race -v; \
+	fi
+
 
 ## builds the service
 .PHONY: service
@@ -30,7 +35,7 @@ run: service
 ## lint the whole project
 .PHONY: lint
 lint:
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./...
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./... -v
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 

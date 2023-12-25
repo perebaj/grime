@@ -3,18 +3,19 @@ package event
 
 import (
 	"context"
-	"fmt"
 
 	"gocloud.dev/pubsub"
 )
 
 type Event struct {
-	Topic string
+	Topic      string
+	MaxHandler int
 }
 
-func NewEvent(topic string) Event {
+func NewEvent(topic string, maxHandler int) Event {
 	return Event{
-		Topic: topic,
+		Topic:      topic,
+		MaxHandler: maxHandler,
 	}
 }
 
@@ -39,23 +40,40 @@ func (e Event) Send() error {
 	return nil
 }
 
-func (e Event) Receive() error {
-	ctx := context.Background()
+func (e Event) Receive(f func(msg *pubsub.Message) error, ctx context.Context) error {
+	if e.MaxHandler == 0 || e.MaxHandler < 0 {
+		e.MaxHandler = 10
+	}
+
 	subs, err := pubsub.OpenSubscription(ctx, e.Topic)
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		_ = subs.Shutdown(ctx)
-	}()
+	// defer func() {
+	// 	_ = subs.Shutdown(ctx)
+	// }()
 
-	msg, err := subs.Receive(ctx)
-	if err != nil {
-		return err
+	sem := make(chan struct{}, e.MaxHandler)
+	for {
+		msg, err := subs.Receive(ctx)
+		if err != nil {
+			return err
+		}
+
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		go func() {
+			defer func() { <-sem }() // release the semaphore
+			defer msg.Ack()
+
+			if err := f(msg); err != nil {
+				return
+			}
+		}()
 	}
-	fmt.Println(string(msg.Body))
-	msg.Ack()
-
-	return nil
 }

@@ -12,10 +12,15 @@ devrun=docker run --rm \
 image=perebaj
 version=$(shell git rev-parse --short HEAD)
 
-## run isolated tests
+## Run all tests. Usage `make test` or `make test testcase="TestFunctionName"`
 .PHONY: test
 test:
-	go test ./... -timeout 10s -race
+	if [ -n "$(testcase)" ]; then \
+		go test ./... -timeout 10s -race -run="^$(testcase)$$" -v; \
+	else \
+		go test ./... -timeout 10s -race; \
+	fi
+
 
 ## builds the service
 .PHONY: service

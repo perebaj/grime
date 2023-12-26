@@ -65,11 +65,13 @@ func (s Subscription) Receive(ctx context.Context, handler Handler) error {
 
 		go func() {
 			defer func() { <-sem }() // release the semaphore
-			defer msg.Ack()
-
-			if err := handler(msg); err != nil {
-				return
+			err := handler(msg)
+			if err != nil {
+				if msg.Nackable() {
+					msg.Nack()
+				}
 			}
+			msg.Ack()
 		}()
 	}
 }

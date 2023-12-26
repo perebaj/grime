@@ -44,6 +44,7 @@ func TestSubscription_Receive(t *testing.T) {
 	err = topic.Send(ctx, &pubsub.Message{
 		Body: []byte("Hello world!"),
 	})
+
 	if err != nil {
 		t.Fatal(err)
 	}
